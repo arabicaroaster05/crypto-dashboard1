@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>加密貨幣即時行情看盤</title>
+  <!-- 載入 TradingView 官方開源輕量圖表庫 -->
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #131722;
+      color: #d1d4dc;
+      margin: 0;
+      padding: 20px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    h2 { margin: 0; font-size: 1.25rem; }
+    .controls { display: flex; gap: 10px; align-items: center; }
+    select {
+      background: #2a2e39;
+      color: #fff;
+      border: 1px solid #434651;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    #chart {
+      width: 100%;
+      height: 550px;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .status {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: #787b86;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>即時 K 線互動看板</h2>
+    <div class="controls">
+      <label for="symbol">標的：</label>
+      <select id="symbol">
+        <option value="BTCUSDT">比特幣 (BTC/USDT)</option>
+        <option value="ETHUSDT">以太幣 (ETH/USDT)</option>
+        <option value="SOLUSDT">Solana (SOL/USDT)</option>
+      </select>
+
+      <label for="interval">週期：</label>
+      <select id="interval">
+        <option value="15m">15 分鐘</option>
+        <option value="1h" selected>1 小時</option>
+        <option value="4h">4 小時</option>
+        <option value="1d">1 天</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="chart"></div>
+  <div class="status" id="status">數據來源：幣安公開行情 API（每切換自動更新）</div>
+
+  <script>
+    // 1. 初始化 TradingView 圖表
+    const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+      layout: { background: { color: '#131722' }, textColor: '#d1d4dc' },
+      grid: {
+        vertLines: { color: '#1f2430' },
+        horzLines: { color: '#1f2430' }
+      },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      timeScale: { timeVisible: true, secondsVisible: false }
+    });
+
+    // 2. 加入 K 線系列
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: '#26a69a',
+      downColor: '#ef5350',
+      borderVisible: false,
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350'
+    });
+
+    // 3. 從幣安公開 API 抓取歷史 K 線
+    async function loadData() {
+      const symbol = document.getElementById('symbol').value;
+      const interval = document.getElementById('interval').value;
+      const status = document.getElementById('status');
+      
+      status.innerText = `載入 ${symbol} (${interval}) 數據中...`;
+      try {
+        const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=300`);
+        const rawData = await response.json();
+
+        // 轉換幣安回傳格式為圖表庫所需格式
+        const formattedData = rawData.map(d => ({
+          time: d[0] / 1000,
+          open: parseFloat(d[1]),
+          high: parseFloat(d[2]),
+          low: parseFloat(d[3]),
+          close: parseFloat(d[4])
+        }));
+
+        candleSeries.setData(formattedData);
+        chart.timeScale().fitContent();
+        status.innerText = `已更新 ${symbol} (${interval}) 數據。滑鼠可滾動縮放、拖曳平移。`;
+      } catch (err) {
+        status.innerText = '讀取失敗，請檢查網路連線。';
+      }
+    }
+
+    // 監聽下拉選單改變
+    document.getElementById('symbol').addEventListener('change', loadData);
+    document.getElementById('interval').addEventListener('change', loadData);
+
+    // 首次載入
+    loadData();
+
+    // 視窗大小改變時自動縮放圖表
+    window.addEventListener('resize', () => {
+      chart.applyOptions({ width: document.getElementById('chart').clientWidth });
+    });
+  </script>
+</body>
+</html>
